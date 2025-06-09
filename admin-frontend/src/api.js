@@ -1,18 +1,19 @@
-import axios from 'axios';
+// src/api.js
+import axios from "axios";
 
-// Create an Axios instance with default settings
+// Create an Axios instance
 const api = axios.create({
-  baseURL: 'https://admin-w4u5.onrender.com/api/admin',
+  baseURL: "https://admin-w4u5.onrender.com/api/admin",
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
-  timeout: 10000, // Optional timeout (in milliseconds)
+  timeout: 10000, // Optional timeout
 });
 
-// Request interceptor for adding auth token if available
+// Add a request interceptor to attach the token
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -21,23 +22,23 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for handling errors globally
+// Add a response interceptor to handle success and errors
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Return only the response data
+    return response.data;
+  },
   (error) => {
     if (error.response) {
-      console.error('Response error:', error.response.status, error.response.data);
-
+      console.error("Response error:", error.response.status, error.response.data);
       if (error.response.status === 401) {
-        // Handle unauthorized access
-        window.location.href = '/login';
+        window.location.href = "/login"; // Redirect on unauthorized
       }
     } else if (error.request) {
-      console.error('Request error:', error.request);
+      console.error("No response received:", error.request);
     } else {
-      console.error('Setup error:', error.message);
+      console.error("Request setup error:", error.message);
     }
-
     return Promise.reject(error);
   }
 );
