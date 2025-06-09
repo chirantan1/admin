@@ -1,7 +1,7 @@
 import express from "express";
 import User from "../models/User.js";
 import Appointment from "../models/Appointment.js";
-import { body, param, validationResult } from "express-validator";
+import { body, param, query, validationResult } from "express-validator";
 
 const router = express.Router();
 
