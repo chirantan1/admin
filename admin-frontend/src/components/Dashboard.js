@@ -25,9 +25,10 @@ const Dashboard = () => {
         api.get("/patients"),
         api.get("/appointments"),
       ]);
-      setDoctors(doctorRes.data);
-      setPatients(patientRes.data);
-      setAppointments(appointmentRes.data);
+      // FIX: use .data.data for actual array of items
+      setDoctors(doctorRes.data.data);
+      setPatients(patientRes.data.data);
+      setAppointments(appointmentRes.data.data);
     } catch (err) {
       console.error("Error fetching data:", err);
     } finally {
@@ -89,7 +90,7 @@ const Dashboard = () => {
     doc.text(appointment._id.slice(-8).toUpperCase(), 40, 65);
     doc.text(new Date().toLocaleDateString(), 40, 70);
     doc.text(appointment.patientId ? appointment.patientId.slice(-6).toUpperCase() : "N/A", 40, 75);
-    
+
     const patientInfoY = 90;
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
@@ -103,7 +104,7 @@ const Dashboard = () => {
     doc.setFontSize(10);
     doc.text("Phone: " + (appointment.patientPhone || "N/A"), 20, patientInfoY + 14);
     doc.text("Specialty: " + (appointment.doctorSpecialty || "General"), 110, patientInfoY + 14);
-    
+
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(15, 82, 186);
@@ -113,7 +114,7 @@ const Dashboard = () => {
     doc.text(`Date: ${new Date(appointment.date).toLocaleDateString()}`, 20, patientInfoY + 38);
     doc.text(`Time: ${new Date(appointment.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`, 20, patientInfoY + 44);
     doc.text(`Duration: 30 mins`, 20, patientInfoY + 50);
-    
+
     const status = appointment.status || "completed";
     if (status === "completed") doc.setFillColor(40, 167, 69);
     else if (status === "pending") doc.setFillColor(255, 193, 7);
@@ -131,16 +132,20 @@ const Dashboard = () => {
     doc.text("AMOUNT (Rs.)", 165, tableY + 7, null, null, "right");
 
     const charges = [
-      { desc: "Consultation Fee", amount: 750.00 },
-      { desc: "Medical Examination", amount: 350.00 },
-      { desc: "Service Tax (18%)", amount: 198.00 },
-      { desc: "Facility Charges", amount: 150.00 }
+      { desc: "Consultation Fee", amount: 750.0 },
+      { desc: "Medical Examination", amount: 350.0 },
+      { desc: "Service Tax (18%)", amount: 198.0 },
+      { desc: "Facility Charges", amount: 150.0 },
     ];
-    
+
     let currentY = tableY + 10;
     charges.forEach((item, index) => {
-      doc.setFillColor(index % 2 === 0 ? 240 : 255, index % 2 === 0 ? 240 : 255, index % 2 === 0 ? 240 : 255);
-      doc.rect(20, currentY, 170, 10, 'F');
+      doc.setFillColor(
+        index % 2 === 0 ? 240 : 255,
+        index % 2 === 0 ? 240 : 255,
+        index % 2 === 0 ? 240 : 255
+      );
+      doc.rect(20, currentY, 170, 10, "F");
       doc.text(item.desc, 25, currentY + 7);
       doc.text(`₹ ${item.amount.toFixed(2)}`, 165, currentY + 7, null, null, "right");
       currentY += 10;
@@ -148,38 +153,46 @@ const Dashboard = () => {
 
     const totalAmount = charges.reduce((sum, c) => sum + c.amount, 0);
     doc.setFillColor(240, 240, 240);
-    doc.rect(20, currentY, 170, 15, 'F');
+    doc.rect(20, currentY, 170, 15, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.text("TOTAL", 25, currentY + 10);
     doc.text(`₹ ${totalAmount.toFixed(2)}`, 165, currentY + 10, null, null, "right");
-    
+
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text("Payment Method: Credit Card (Paid)", 20, currentY + 25);
     doc.text("Transaction ID: XXXX-XXXX-XXXX-1234", 20, currentY + 30);
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text("For any inquiries, please contact our billing department at billing@medicareclinic.com", 105, 285, null, null, "center");
+    doc.text(
+      "For any inquiries, please contact our billing department at billing@medicareclinic.com",
+      105,
+      285,
+      null,
+      null,
+      "center"
+    );
     doc.setFontSize(8);
     doc.text("Terms & Conditions:", 20, 270);
     doc.text("1. Payment is due within 15 days of invoice date.", 20, 275);
     doc.text("2. Late payments may be subject to a 1.5% monthly interest charge.", 20, 280);
-    
+
     doc.setFontSize(60);
     doc.setTextColor(230, 230, 230);
     doc.setFont("helvetica", "bold");
     doc.text("PAID", 105, 150, null, null, "center");
-    doc.save(`Invoice_${appointment._id.slice(-8)}_${appointment.patientName || 'Patient'}.pdf`);
+    doc.save(`Invoice_${appointment._id.slice(-8)}_${appointment.patientName || "Patient"}.pdf`);
   };
 
   const filteredDoctors = doctors.filter((doc) =>
     doc.name.toLowerCase().includes(doctorSearchTerm.toLowerCase())
   );
 
-  const filteredPatients = patients.filter((patient) =>
-    patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-    patient.email.toLowerCase().includes(patientSearchTerm.toLowerCase())
+  const filteredPatients = patients.filter(
+    (patient) =>
+      patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+      patient.email.toLowerCase().includes(patientSearchTerm.toLowerCase())
   );
 
   return (
@@ -221,39 +234,34 @@ const Dashboard = () => {
         </div>
       ) : (
         <>
-          <Section 
-            title="Doctors" 
-            data={filteredDoctors} 
-            type="doctor" 
-            onDelete={deleteItem} 
-            onView={handleViewDetails} 
+          <Section
+            title="Doctors"
+            data={filteredDoctors}
+            type="doctor"
+            onDelete={deleteItem}
+            onView={handleViewDetails}
           />
-          <Section 
-            title="Patients" 
-            data={filteredPatients} 
-            type="patient" 
-            onDelete={deleteItem} 
-            onView={handleViewDetails} 
+          <Section
+            title="Patients"
+            data={filteredPatients}
+            type="patient"
+            onDelete={deleteItem}
+            onView={handleViewDetails}
           />
-          <AppointmentsSection 
-            appointments={appointments} 
-            onGenerateBill={generateBillPDF} 
-            onDelete={deleteAppointment} 
+          <AppointmentsSection
+            appointments={appointments}
+            onGenerateBill={generateBillPDF}
+            onDelete={deleteAppointment}
           />
         </>
       )}
 
       {selectedItem && (
-        <div className={`modal-overlay ${selectedItem ? 'active' : ''}`}>
+        <div className={`modal-overlay ${selectedItem ? "active" : ""}`}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">
-                {viewType === "doctor" ? "Doctor Details" : "Patient Details"}
-              </h2>
-              <button 
-                className="modal-close" 
-                onClick={() => setSelectedItem(null)}
-              >
+              <h2 className="modal-title">{viewType === "doctor" ? "Doctor Details" : "Patient Details"}</h2>
+              <button className="modal-close" onClick={() => setSelectedItem(null)}>
                 &times;
               </button>
             </div>
@@ -267,10 +275,7 @@ const Dashboard = () => {
               </ul>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => setSelectedItem(null)}
-              >
+              <button className="btn btn-secondary" onClick={() => setSelectedItem(null)}>
                 Close
               </button>
             </div>
@@ -301,10 +306,7 @@ const Section = ({ title, data, type, onDelete, onView }) => (
         {data.map((item) => (
           <li key={item._id} className={`list-item ${type}`}>
             <div className="list-item-content">
-              <strong 
-                className="clickable" 
-                onClick={() => onView(type, item)}
-              >
+              <strong className="clickable" onClick={() => onView(type, item)}>
                 {type === "doctor" ? `Dr. ${item.name}` : item.name}
               </strong>{" "}
               {type === "doctor" ? (
@@ -313,10 +315,7 @@ const Section = ({ title, data, type, onDelete, onView }) => (
                 <span className="email">({item.email})</span>
               )}
             </div>
-            <button 
-              className="btn btn-danger btn-sm" 
-              onClick={() => onDelete(type, item._id)}
-            >
+            <button className="btn btn-danger btn-sm" onClick={() => onDelete(type, item._id)}>
               Delete
             </button>
           </li>
@@ -340,21 +339,15 @@ const AppointmentsSection = ({ appointments, onGenerateBill, onDelete }) => (
               <span>
                 <strong>{apt.patientName}</strong> with <strong>{apt.doctorName}</strong>
               </span>{" "}
-              <span className={`status ${apt.status ? apt.status.toLowerCase() : 'completed'}`}>
+              <span className={`status ${apt.status ? apt.status.toLowerCase() : "completed"}`}>
                 [{apt.status || "completed"}]
               </span>
             </div>
             <div className="appointment-actions">
-              <button 
-                className="btn btn-primary generate-bill-btn" 
-                onClick={() => onGenerateBill(apt)}
-              >
+              <button className="btn btn-primary generate-bill-btn" onClick={() => onGenerateBill(apt)}>
                 Generate Bill
               </button>
-              <button 
-                className="btn btn-danger" 
-                onClick={() => onDelete(apt._id)}
-              >
+              <button className="btn btn-danger" onClick={() => onDelete(apt._id)}>
                 Delete
               </button>
             </div>
