@@ -25,10 +25,9 @@ const Dashboard = () => {
         api.get("/patients"),
         api.get("/appointments"),
       ]);
-      // FIX: use .data.data for actual array of items
-      setDoctors(doctorRes.data.data);
-      setPatients(patientRes.data.data);
-      setAppointments(appointmentRes.data.data);
+      setDoctors(doctorRes.data?.data || []);
+      setPatients(patientRes.data?.data || []);
+      setAppointments(appointmentRes.data?.data || []);
     } catch (err) {
       console.error("Error fetching data:", err);
     } finally {
@@ -78,7 +77,7 @@ const Dashboard = () => {
     doc.setFont("helvetica", "bold");
     doc.setTextColor(220, 53, 69);
     doc.text("APPOINTMENT INVOICE", 105, 50, null, null, "center");
-    doc.setDrawColor(200, 200, 200);
+
     doc.line(20, 55, 190, 55);
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
@@ -112,13 +111,12 @@ const Dashboard = () => {
     doc.setFont("helvetica", "normal");
     doc.setTextColor(0, 0, 0);
     doc.text(`Date: ${new Date(appointment.date).toLocaleDateString()}`, 20, patientInfoY + 38);
-    doc.text(`Time: ${new Date(appointment.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`, 20, patientInfoY + 44);
+    doc.text(`Time: ${new Date(appointment.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 20, patientInfoY + 44);
     doc.text(`Duration: 30 mins`, 20, patientInfoY + 50);
 
     const status = appointment.status || "completed";
-    if (status === "completed") doc.setFillColor(40, 167, 69);
-    else if (status === "pending") doc.setFillColor(255, 193, 7);
-    else doc.setFillColor(220, 53, 69);
+    const statusColor = status === "completed" ? [40, 167, 69] : status === "pending" ? [255, 193, 7] : [220, 53, 69];
+    doc.setFillColor(...statusColor);
     doc.roundedRect(110, patientInfoY + 34, 30, 10, 2, 2, 'F');
     doc.setTextColor(255, 255, 255);
     doc.text(status.toUpperCase(), 125, patientInfoY + 40, null, null, "center");
@@ -140,12 +138,9 @@ const Dashboard = () => {
 
     let currentY = tableY + 10;
     charges.forEach((item, index) => {
-      doc.setFillColor(
-        index % 2 === 0 ? 240 : 255,
-        index % 2 === 0 ? 240 : 255,
-        index % 2 === 0 ? 240 : 255
-      );
+      doc.setFillColor(index % 2 === 0 ? 245 : 255);
       doc.rect(20, currentY, 170, 10, "F");
+      doc.setTextColor(0, 0, 0);
       doc.text(item.desc, 25, currentY + 7);
       doc.text(`₹ ${item.amount.toFixed(2)}`, 165, currentY + 7, null, null, "right");
       currentY += 10;
@@ -165,14 +160,7 @@ const Dashboard = () => {
     doc.text("Transaction ID: XXXX-XXXX-XXXX-1234", 20, currentY + 30);
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    doc.text(
-      "For any inquiries, please contact our billing department at billing@medicareclinic.com",
-      105,
-      285,
-      null,
-      null,
-      "center"
-    );
+    doc.text("For any inquiries, please contact our billing department at billing@medicareclinic.com", 105, 285, null, null, "center");
     doc.setFontSize(8);
     doc.text("Terms & Conditions:", 20, 270);
     doc.text("1. Payment is due within 15 days of invoice date.", 20, 275);
@@ -182,17 +170,18 @@ const Dashboard = () => {
     doc.setTextColor(230, 230, 230);
     doc.setFont("helvetica", "bold");
     doc.text("PAID", 105, 150, null, null, "center");
+
     doc.save(`Invoice_${appointment._id.slice(-8)}_${appointment.patientName || "Patient"}.pdf`);
   };
 
   const filteredDoctors = doctors.filter((doc) =>
-    doc.name.toLowerCase().includes(doctorSearchTerm.toLowerCase())
+    doc.name?.toLowerCase().includes(doctorSearchTerm.toLowerCase())
   );
 
   const filteredPatients = patients.filter(
     (patient) =>
-      patient.name.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-      patient.email.toLowerCase().includes(patientSearchTerm.toLowerCase())
+      patient.name?.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+      patient.email?.toLowerCase().includes(patientSearchTerm.toLowerCase())
   );
 
   return (
@@ -229,55 +218,31 @@ const Dashboard = () => {
       </section>
 
       {loading ? (
-        <div className="loading">
-          <span>Loading data...</span>
-        </div>
+        <div className="loading"><span>Loading data...</span></div>
       ) : (
         <>
-          <Section
-            title="Doctors"
-            data={filteredDoctors}
-            type="doctor"
-            onDelete={deleteItem}
-            onView={handleViewDetails}
-          />
-          <Section
-            title="Patients"
-            data={filteredPatients}
-            type="patient"
-            onDelete={deleteItem}
-            onView={handleViewDetails}
-          />
-          <AppointmentsSection
-            appointments={appointments}
-            onGenerateBill={generateBillPDF}
-            onDelete={deleteAppointment}
-          />
+          <Section title="Doctors" data={filteredDoctors} type="doctor" onDelete={deleteItem} onView={handleViewDetails} />
+          <Section title="Patients" data={filteredPatients} type="patient" onDelete={deleteItem} onView={handleViewDetails} />
+          <AppointmentsSection appointments={appointments} onGenerateBill={generateBillPDF} onDelete={deleteAppointment} />
         </>
       )}
 
       {selectedItem && (
-        <div className={`modal-overlay ${selectedItem ? "active" : ""}`}>
+        <div className="modal-overlay active">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">{viewType === "doctor" ? "Doctor Details" : "Patient Details"}</h2>
-              <button className="modal-close" onClick={() => setSelectedItem(null)}>
-                &times;
-              </button>
+              <h2>{viewType === "doctor" ? "Doctor Details" : "Patient Details"}</h2>
+              <button className="modal-close" onClick={() => setSelectedItem(null)}>&times;</button>
             </div>
             <div className="modal-body">
               <ul className="details-list">
                 {Object.entries(selectedItem).map(([key, value]) => (
-                  <li key={key} className="detail-item">
-                    <strong>{key}:</strong> <span>{String(value)}</span>
-                  </li>
+                  <li key={key}><strong>{key}:</strong> {String(value)}</li>
                 ))}
               </ul>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setSelectedItem(null)}>
-                Close
-              </button>
+              <button className="btn btn-secondary" onClick={() => setSelectedItem(null)}>Close</button>
             </div>
           </div>
         </div>
@@ -336,10 +301,8 @@ const AppointmentsSection = ({ appointments, onGenerateBill, onDelete }) => (
           <li key={apt._id} className="list-item appointment">
             <div className="appointment-info">
               <span className="date">📅 {new Date(apt.date).toLocaleDateString()}</span>{" "}
-              <span>
-                <strong>{apt.patientName}</strong> with <strong>{apt.doctorName}</strong>
-              </span>{" "}
-              <span className={`status ${apt.status ? apt.status.toLowerCase() : "completed"}`}>
+              <span><strong>{apt.patientName}</strong> with <strong>{apt.doctorName}</strong></span>{" "}
+              <span className={`status ${apt.status?.toLowerCase() || "completed"}`}>
                 [{apt.status || "completed"}]
               </span>
             </div>
