@@ -24,6 +24,7 @@
 
 body {
   background-color: #f8fafc;
+  line-height: 1.6;
 }
 
 .dashboard-container {
@@ -686,3 +687,48 @@ body {
 .list-item:nth-child(3) { animation-delay: 0.3s; }
 .list-item:nth-child(4) { animation-delay: 0.4s; }
 .list-item:nth-child(5) { animation-delay: 0.5s; }
+
+/* Accessibility Improvements */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Focus styles for better accessibility */
+button:focus, input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+  .dashboard-header, .search-section, .appointment-actions {
+    display: none;
+  }
+  
+  .list-section {
+    box-shadow: none;
+    padding: 0;
+    break-inside: avoid;
+  }
+  
+  .list-item {
+    box-shadow: none;
+    border-left: none;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    break-inside: avoid;
+  }
+  
+  body {
+    background-color: white;
+    font-size: 12pt;
+  }
+}
