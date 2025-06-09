@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import api from "../api";
+import axios from "axios";
 import { jsPDF } from "jspdf";
 import "./Dashboard.css";
 
@@ -13,13 +13,35 @@ const Dashboard = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [viewType, setViewType] = useState("");
 
+  /* ------------------------------------------------------------------ */
+  /*  Axios helpers                                                     */
+  /* ------------------------------------------------------------------ */
+  const api = axios.create({
+    baseURL: "https://project1-backend-d55g.onrender.com/api",
+  });
+
+  const setAuthToken = (token) => {
+    if (token) {
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+    } else {
+      delete api.defaults.headers.common["Authorization"];
+    }
+  };
+
+  /* ------------------------------------------------------------------ */
+  /*  Initial fetch                                                     */
+  /* ------------------------------------------------------------------ */
   useEffect(() => {
     fetchAllData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchAllData = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem("token");
+      setAuthToken(token);
+
       const [doctorRes, patientRes, appointmentRes] = await Promise.all([
         api.get("/doctors"),
         api.get("/patients"),
@@ -30,14 +52,23 @@ const Dashboard = () => {
       setAppointments(appointmentRes.data?.data || []);
     } catch (err) {
       console.error("Error fetching data:", err);
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        localStorage.removeItem("token");
+        alert("Session expired or unauthorized. Please log in again.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  /* ------------------------------------------------------------------ */
+  /*  Deletes                                                           */
+  /* ------------------------------------------------------------------ */
   const deleteItem = async (type, id) => {
     if (window.confirm(`Are you sure you want to delete this ${type}?`)) {
       try {
+        const token = localStorage.getItem("token");
+        setAuthToken(token);
         await api.delete(`/${type}s/${id}`);
         fetchAllData();
       } catch (err) {
@@ -49,6 +80,8 @@ const Dashboard = () => {
   const deleteAppointment = async (id) => {
     if (window.confirm("Are you sure you want to delete this appointment?")) {
       try {
+        const token = localStorage.getItem("token");
+        setAuthToken(token);
         await api.delete(`/appointments/${id}`);
         fetchAllData();
       } catch (err) {
@@ -57,133 +90,165 @@ const Dashboard = () => {
     }
   };
 
+  /* ------------------------------------------------------------------ */
+  /*  View & PDF helpers                                                */
+  /* ------------------------------------------------------------------ */
   const handleViewDetails = (type, item) => {
     setSelectedItem(item);
     setViewType(type);
   };
 
+  /**
+   * Safely builds and downloads a simple invoice PDF for an appointment.
+   * The only change from your original version is the use of optional chaining
+   * (`?.`) and fall-backs (e.g. `|| "N/A"`) everywhere we used `.slice()`.
+   */
   const generateBillPDF = (appointment) => {
     const doc = new jsPDF();
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(15, 82, 186);
-    doc.text("MediCare Clinic", 105, 25, null, null, "center");
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(0, 0, 0);
-    doc.text("123 Health Avenue, Medical City", 105, 32, null, null, "center");
-    doc.text("Phone: (555) 123-4567 | Email: info@medicareclinic.com", 105, 38, null, null, "center");
-    doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(220, 53, 69);
-    doc.text("APPOINTMENT INVOICE", 105, 50, null, null, "center");
 
-    doc.line(20, 55, 190, 55);
+    /* ---------- Header ---------- */
+    doc.setFontSize(20);
+    doc.setTextColor(40, 53, 147);
+    doc.text("Healthcare Clinic", 105, 20, null, null, "center");
+
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text("INVOICE", 105, 30, null, null, "center");
+
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, 35, 190, 35);
+
+    /* ---------- Clinic info ---------- */
+    doc.setFontSize(10);
+    doc.text("Healthcare Clinic", 20, 45);
+    doc.text("123 Medical Drive", 20, 50);
+    doc.text("Healthville, HV 12345", 20, 55);
+    doc.text("Phone: (123) 456-7890", 20, 60);
+
+    /* ---------- Invoice details ---------- */
+    const invoiceShortId = appointment?._id?.slice?.(-6) || "------";
+    const patientShortId = appointment?.patientId?.slice?.(-6) || "------";
+
+    doc.text(`Invoice #: ${invoiceShortId}`, 150, 45);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 150, 50);
+    doc.text(`Patient ID: ${patientShortId}`, 150, 55);
+
+    /* ---------- Patient info ---------- */
+    doc.setFontSize(12);
+    doc.text("Bill To:", 20, 75);
+    doc.setFontSize(10);
+
+    const patient =
+      patients.find((p) => p._id === appointment?.patientId) || {};
+
+    doc.text(`Name: ${patient.name || appointment?.patientName || "N/A"}`, 20, 80);
+    doc.text(`Email: ${patient.email || appointment?.patientEmail || "N/A"}`, 20, 85);
+    doc.text(`Phone: ${patient.phone || appointment?.patientPhone || "N/A"}`, 20, 90);
+
+    /* ---------- Appointment details ---------- */
+    doc.setFontSize(12);
+    doc.text("Appointment Details:", 20, 105);
+    doc.setFontSize(10);
+
+    const doctor =
+      doctors.find((d) => d._id === appointment?.doctorId) || {};
+
+    doc.text(
+      `Date: ${appointment?.date ? new Date(appointment.date).toLocaleDateString() : "N/A"
+      }`,
+      20,
+      110
+    );
+    doc.text(`Time: ${appointment?.time || "N/A"}`, 20, 115);
+    doc.text(
+      `Doctor: Dr. ${doctor.name || appointment?.doctorName || "N/A"}${doctor.specialization
+        ? ` (${doctor.specialization})`
+        : ""
+      }`,
+      20,
+      120
+    );
+    doc.text(`Reason: ${appointment?.reason || "General Checkup"}`, 20, 125);
+
+    /* ---------- Bill items ---------- */
+    doc.setFontSize(12);
+    doc.text("Bill Items:", 20, 140);
+
+    // Table header
+    doc.setFillColor(230, 230, 230);
+    doc.rect(20, 145, 170, 10, "F");
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(100, 100, 100);
-    doc.text("INVOICE #:", 20, 65);
-    doc.text("DATE:", 20, 70);
-    doc.text("PATIENT ID:", 20, 75);
+    doc.text("Description", 25, 151);
+    doc.text("Amount", 160, 151, null, null, "right");
     doc.setFont("helvetica", "normal");
-    doc.text(appointment._id.slice(-8).toUpperCase(), 40, 65);
-    doc.text(new Date().toLocaleDateString(), 40, 70);
-    doc.text(appointment.patientId ? appointment.patientId.slice(-6).toUpperCase() : "N/A", 40, 75);
 
-    const patientInfoY = 90;
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(15, 82, 186);
-    doc.text("BILL TO:", 20, patientInfoY);
-    doc.text("DOCTOR:", 110, patientInfoY);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(0, 0, 0);
-    doc.text(appointment.patientName || "Patient Name", 20, patientInfoY + 7);
-    doc.text(appointment.doctorName || "Dr. Smith", 110, patientInfoY + 7);
-    doc.setFontSize(10);
-    doc.text("Phone: " + (appointment.patientPhone || "N/A"), 20, patientInfoY + 14);
-    doc.text("Specialty: " + (appointment.doctorSpecialty || "General"), 110, patientInfoY + 14);
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(15, 82, 186);
-    doc.text("APPOINTMENT DETAILS", 20, patientInfoY + 30);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(0, 0, 0);
-    doc.text(`Date: ${new Date(appointment.date).toLocaleDateString()}`, 20, patientInfoY + 38);
-    doc.text(`Time: ${new Date(appointment.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, 20, patientInfoY + 44);
-    doc.text(`Duration: 30 mins`, 20, patientInfoY + 50);
-
-    const status = appointment.status || "completed";
-    const statusColor = status === "completed" ? [40, 167, 69] : status === "pending" ? [255, 193, 7] : [220, 53, 69];
-    doc.setFillColor(...statusColor);
-    doc.roundedRect(110, patientInfoY + 34, 30, 10, 2, 2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.text(status.toUpperCase(), 125, patientInfoY + 40, null, null, "center");
-
-    const tableY = patientInfoY + 65;
-    doc.setFillColor(15, 82, 186);
-    doc.rect(20, tableY, 170, 10, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.text("DESCRIPTION", 25, tableY + 7);
-    doc.text("AMOUNT (Rs.)", 165, tableY + 7, null, null, "right");
-
-    const charges = [
-      { desc: "Consultation Fee", amount: 750.0 },
-      { desc: "Medical Examination", amount: 350.0 },
-      { desc: "Service Tax (18%)", amount: 198.0 },
-      { desc: "Facility Charges", amount: 150.0 },
+    // Bill item rows (dummy data; replace if your API provides real prices)
+    const items = [
+      { description: "Consultation Fee", amount: 150 },
+      { description: "Medical Tests", amount: 75 },
+      { description: "Medication", amount: 50 },
     ];
 
-    let currentY = tableY + 10;
-    charges.forEach((item, index) => {
-      doc.setFillColor(index % 2 === 0 ? 245 : 255);
-      doc.rect(20, currentY, 170, 10, "F");
-      doc.setTextColor(0, 0, 0);
-      doc.text(item.desc, 25, currentY + 7);
-      doc.text(`₹ ${item.amount.toFixed(2)}`, 165, currentY + 7, null, null, "right");
-      currentY += 10;
+    let y = 155;
+    items.forEach((item) => {
+      doc.text(item.description, 25, y);
+      doc.text(`$${item.amount.toFixed(2)}`, 160, y, null, null, "right");
+      y += 10;
     });
 
-    const totalAmount = charges.reduce((sum, c) => sum + c.amount, 0);
-    doc.setFillColor(240, 240, 240);
-    doc.rect(20, currentY, 170, 15, "F");
+    // Total
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("TOTAL", 25, currentY + 10);
-    doc.text(`₹ ${totalAmount.toFixed(2)}`, 165, currentY + 10, null, null, "right");
+    const total = items.reduce((sum, item) => sum + item.amount, 0);
+    doc.text("Total", 25, y + 10);
+    doc.text(`$${total.toFixed(2)}`, 160, y + 10, null, null, "right");
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("Payment Method: Credit Card (Paid)", 20, currentY + 25);
-    doc.text("Transaction ID: XXXX-XXXX-XXXX-1234", 20, currentY + 30);
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text("For any inquiries, please contact our billing department at billing@medicareclinic.com", 105, 285, null, null, "center");
+    /* ---------- Footer ---------- */
     doc.setFontSize(8);
-    doc.text("Terms & Conditions:", 20, 270);
-    doc.text("1. Payment is due within 15 days of invoice date.", 20, 275);
-    doc.text("2. Late payments may be subject to a 1.5% monthly interest charge.", 20, 280);
+    doc.setTextColor(100, 100, 100);
+    doc.text(
+      "Thank you for choosing Healthcare Clinic",
+      105,
+      280,
+      null,
+      null,
+      "center"
+    );
+    doc.text(
+      "Please contact us for any questions regarding this invoice",
+      105,
+      285,
+      null,
+      null,
+      "center"
+    );
 
-    doc.setFontSize(60);
-    doc.setTextColor(230, 230, 230);
-    doc.setFont("helvetica", "bold");
-    doc.text("PAID", 105, 150, null, null, "center");
-
-    doc.save(`Invoice_${appointment._id.slice(-8)}_${appointment.patientName || "Patient"}.pdf`);
+    /* ---------- Save ---------- */
+    doc.save(`invoice_${invoiceShortId}.pdf`);
   };
 
-  const filteredDoctors = doctors.filter((doc) =>
-    doc.name?.toLowerCase().includes(doctorSearchTerm.toLowerCase())
+  /* ------------------------------------------------------------------ */
+  /*  Local search helpers                                              */
+  /* ------------------------------------------------------------------ */
+  const filteredDoctors = doctors.filter(
+    (doc) =>
+      doc.name?.toLowerCase().includes(doctorSearchTerm.toLowerCase()) ||
+      doc.specialization
+        ?.toLowerCase()
+        .includes(doctorSearchTerm.toLowerCase())
   );
 
   const filteredPatients = patients.filter(
     (patient) =>
       patient.name?.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
-      patient.email?.toLowerCase().includes(patientSearchTerm.toLowerCase())
+      patient.email?.toLowerCase().includes(patientSearchTerm.toLowerCase()) ||
+      patient.phone?.includes(patientSearchTerm)
   );
 
+  /* ------------------------------------------------------------------ */
+  /*  Render                                                            */
+  /* ------------------------------------------------------------------ */
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -191,16 +256,21 @@ const Dashboard = () => {
       </header>
 
       <section className="summary-cards">
-        <Card title="Doctors" count={doctors.length} icon="🩺" type="doctor" />
-        <Card title="Patients" count={patients.length} icon="🧑‍🤝‍🧑" type="patient" />
-        <Card title="Appointments" count={appointments.length} icon="📅" type="appointment" />
+        <Card title="Total Doctors" count={doctors.length} icon="🩺" type="doctor" />
+        <Card title="Total Patients" count={patients.length} icon="🧑‍🤝‍🧑" type="patient" />
+        <Card
+          title="Total Appointments"
+          count={appointments.length}
+          icon="📅"
+          type="appointment"
+        />
       </section>
 
       <section className="search-section">
         <div className="search-group">
           <input
             type="text"
-            placeholder="Search doctors by name..."
+            placeholder="Search doctors by name or specialty..."
             value={doctorSearchTerm}
             onChange={(e) => setDoctorSearchTerm(e.target.value)}
             className="search-input"
@@ -209,7 +279,7 @@ const Dashboard = () => {
         <div className="search-group">
           <input
             type="text"
-            placeholder="Search patients by name or email..."
+            placeholder="Search patients by name, email, or phone..."
             value={patientSearchTerm}
             onChange={(e) => setPatientSearchTerm(e.target.value)}
             className="search-input"
@@ -218,107 +288,240 @@ const Dashboard = () => {
       </section>
 
       {loading ? (
-        <div className="loading"><span>Loading data...</span></div>
+        <div className="loading-spinner">
+          <span>Loading data...</span>
+        </div>
       ) : (
         <>
-          <Section title="Doctors" data={filteredDoctors} type="doctor" onDelete={deleteItem} onView={handleViewDetails} />
-          <Section title="Patients" data={filteredPatients} type="patient" onDelete={deleteItem} onView={handleViewDetails} />
-          <AppointmentsSection appointments={appointments} onGenerateBill={generateBillPDF} onDelete={deleteAppointment} />
+          <Section
+            title="Doctors"
+            data={filteredDoctors}
+            type="doctor"
+            onDelete={deleteItem}
+            onView={handleViewDetails}
+          />
+          <Section
+            title="Patients"
+            data={filteredPatients}
+            type="patient"
+            onDelete={deleteItem}
+            onView={handleViewDetails}
+          />
+          <AppointmentsSection
+            appointments={appointments}
+            onGenerateBill={generateBillPDF}
+            onDelete={deleteAppointment}
+          />
         </>
       )}
 
       {selectedItem && (
-        <div className="modal-overlay active">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{viewType === "doctor" ? "Doctor Details" : "Patient Details"}</h2>
-              <button className="modal-close" onClick={() => setSelectedItem(null)}>&times;</button>
-            </div>
-            <div className="modal-body">
-              <ul className="details-list">
-                {Object.entries(selectedItem).map(([key, value]) => (
-                  <li key={key}><strong>{key}:</strong> {String(value)}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setSelectedItem(null)}>Close</button>
-            </div>
-          </div>
-        </div>
+        <SelectedItemModal
+          item={selectedItem}
+          type={viewType}
+          onClose={() => setSelectedItem(null)}
+        />
       )}
     </div>
   );
 };
 
-const Card = ({ title, count, icon, type }) => (
-  <div className={`card ${type}`}>
-    <div className="card-icon">{icon}</div>
-    <div className="card-info">
-      <h3>{title}</h3>
-      <p>{count}</p>
-    </div>
-  </div>
-);
+/* ------------------------------------------------------------------ */
+/*  Small presentational helpers                                      */
+/* ------------------------------------------------------------------ */
+const Card = ({ title, count, icon, type }) => {
+  const getColorByType = () => {
+    switch (type) {
+      case "doctor":
+        return "#4361ee";
+      case "patient":
+        return "#3a0ca3";
+      case "appointment":
+        return "#4cc9f0";
+      default:
+        return "#7209b7";
+    }
+  };
 
-const Section = ({ title, data, type, onDelete, onView }) => (
-  <section className="list-section">
-    <h2>{title}</h2>
-    {data.length === 0 ? (
-      <p className="empty-message">No {title.toLowerCase()} found.</p>
-    ) : (
-      <ul className="list">
-        {data.map((item) => (
-          <li key={item._id} className={`list-item ${type}`}>
-            <div className="list-item-content">
-              <strong className="clickable" onClick={() => onView(type, item)}>
-                {type === "doctor" ? `Dr. ${item.name}` : item.name}
-              </strong>{" "}
-              {type === "doctor" ? (
-                <span className="specialty">({item.specialty || "General"})</span>
-              ) : (
-                <span className="email">({item.email})</span>
-              )}
-            </div>
-            <button className="btn btn-danger btn-sm" onClick={() => onDelete(type, item._id)}>
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
-    )}
-  </section>
-);
+  return (
+    <div
+      className="summary-card"
+      style={{ borderBottom: `4px solid ${getColorByType()}` }}
+    >
+      <div className="card-icon">{icon}</div>
+      <div className="card-content">
+        <h3>{title}</h3>
+        <p className="card-count">{count}</p>
+      </div>
+    </div>
+  );
+};
+
+const Section = ({ title, data, type, onDelete, onView }) => {
+  const getFieldsByType = () => {
+    switch (type) {
+      case "doctor":
+        return [
+          { label: "Name", key: "name" },
+          { label: "Specialization", key: "specialization" },
+          { label: "Experience", key: "experience", suffix: "yrs" },
+        ];
+      case "patient":
+        return [
+          { label: "Name", key: "name" },
+          { label: "Email", key: "email" },
+          { label: "Phone", key: "phone" },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  return (
+    <section className="data-section">
+      <h2>{title}</h2>
+      {data.length === 0 ? (
+        <p className="no-data">No {type}s found</p>
+      ) : (
+        <div className="table-container">
+          <table>
+            <thead>
+              <tr>
+                {getFieldsByType().map((field) => (
+                  <th key={field.key}>{field.label}</th>
+                ))}
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((item) => (
+                <tr key={item._id}>
+                  {getFieldsByType().map((field) => (
+                    <td key={`${item._id}-${field.key}`}>
+                      {item[field.key]}
+                      {field.suffix && ` ${field.suffix}`}
+                    </td>
+                  ))}
+                  <td className="actions-cell">
+                    <button className="view-btn" onClick={() => onView(type, item)}>
+                      View
+                    </button>
+                    <button
+                      className="delete-btn"
+                      onClick={() => onDelete(type, item._id)}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+};
 
 const AppointmentsSection = ({ appointments, onGenerateBill, onDelete }) => (
-  <section className="list-section">
+  <section className="data-section">
     <h2>Appointments</h2>
     {appointments.length === 0 ? (
-      <p className="empty-message">No appointments found.</p>
+      <p className="no-data">No appointments found</p>
     ) : (
-      <ul className="list appointments">
-        {appointments.map((apt) => (
-          <li key={apt._id} className="list-item appointment">
-            <div className="appointment-info">
-              <span className="date">📅 {new Date(apt.date).toLocaleDateString()}</span>{" "}
-              <span><strong>{apt.patientName}</strong> with <strong>{apt.doctorName}</strong></span>{" "}
-              <span className={`status ${apt.status?.toLowerCase() || "completed"}`}>
-                [{apt.status || "completed"}]
-              </span>
-            </div>
-            <div className="appointment-actions">
-              <button className="btn btn-primary generate-bill-btn" onClick={() => onGenerateBill(apt)}>
-                Generate Bill
-              </button>
-              <button className="btn btn-danger" onClick={() => onDelete(apt._id)}>
-                Delete
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Patient</th>
+              <th>Doctor</th>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Reason</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {appointments.map((appointment) => (
+              <tr key={appointment._id}>
+                <td>{appointment.patientName || "N/A"}</td>
+                <td>{appointment.doctorName || "N/A"}</td>
+                <td>
+                  {appointment.date
+                    ? new Date(appointment.date).toLocaleDateString()
+                    : "N/A"}
+                </td>
+                <td>{appointment.time || "N/A"}</td>
+                <td>{appointment.reason || "General Checkup"}</td>
+                <td className="actions-cell">
+                  <button
+                    className="bill-btn"
+                    onClick={() => onGenerateBill(appointment)}
+                  >
+                    Generate Bill
+                  </button>
+                  <button
+                    className="delete-btn"
+                    onClick={() => onDelete(appointment._id)}
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     )}
   </section>
 );
+
+const SelectedItemModal = ({ item, type, onClose }) => {
+  const getDetailsByType = () => {
+    switch (type) {
+      case "doctor":
+        return [
+          { label: "Name", value: item.name },
+          { label: "Specialization", value: item.specialization },
+          { label: "Experience", value: `${item.experience} years` },
+          { label: "Email", value: item.email },
+          { label: "Phone", value: item.phone },
+          { label: "Address", value: item.address },
+        ];
+      case "patient":
+        return [
+          { label: "Name", value: item.name },
+          { label: "Email", value: item.email },
+          { label: "Phone", value: item.phone },
+          { label: "Age", value: item.age },
+          { label: "Gender", value: item.gender },
+          { label: "Medical History", value: item.medicalHistory || "None" },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h3>{type.charAt(0).toUpperCase() + type.slice(1)} Details</h3>
+          <button className="close-btn" onClick={onClose}>
+            &times;
+          </button>
+        </div>
+        <div className="modal-body">
+          {getDetailsByType().map((detail) => (
+            <div key={detail.label} className="detail-row">
+              <span className="detail-label">{detail.label}:</span>
+              <span className="detail-value">{detail.value || "N/A"}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default Dashboard;
