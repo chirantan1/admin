@@ -70,7 +70,7 @@ router.get("/doctors", [
     query("limit").optional().isInt({ min: 1, max: 100 }).toInt().withMessage("Limit must be between 1 and 100."),
     query("specialty").optional().trim().escape().withMessage("Specialty must be a string."),
     query("availableToday").optional().isBoolean().toBoolean().withMessage("AvailableToday must be a boolean."),
-    // Fix applied here: Add .isString() before .isIn()
+    // FIX APPLIED HERE for availableDay in /doctors route
     query("availableDay")
       .optional()
       .isString().withMessage("AvailableDay must be a string.") // Ensures input is a string before isIn check
@@ -328,10 +328,6 @@ router.delete("/patients/:id", [
 });
 
 // --- Advanced Search for Doctors ---
-// This route is a bit redundant given the robust filtering in /doctors,
-// but can be kept if a separate "quick search" endpoint is desired.
-// I've incorporated the search query into the main /doctors route for better consolidation.
-// Keeping this as a separate route if you specifically want '/doctors/search'
 /**
  * @route GET /api/admin/doctors/search
  * @desc Advanced search for doctors
@@ -342,7 +338,7 @@ router.get("/doctors/search", [
   validate([
     query("query").optional().trim().escape().withMessage("Search query must be a string."),
     query("specialty").optional().trim().escape().withMessage("Specialty must be a string."),
-    // Fix applied here: Add .isString() before .isIn()
+    // FIX APPLIED HERE for availableDay in /doctors/search route
     query("availableDay")
       .optional()
       .isString().withMessage("AvailableDay must be a string.") // Ensures input is a string before isIn check
