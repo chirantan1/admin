@@ -421,7 +421,7 @@ const Section = ({ title, data, type, onDelete, onView }) => (
                 </strong>
                 {type === "doctor" ? (
                   <>
-                    <span className="specialty">{item.specialty || "General"}</span>
+                    <span className="specialty">{item.specialty || ""}</span>
                     <span className="id">ID: {item._id.slice(-6)}</span>
                   </>
                 ) : (
@@ -480,9 +480,9 @@ const AppointmentsSection = ({ appointments, onGenerateBill, onDelete, onView })
               </button>
               <button 
                 className="btn btn-secondary"
-                onClick={() => onView('appointment', apt)}
+                onClick={() => window.open("https://payment-1-sv5s.onrender.com", "_blank")}
               >
-                Details
+                Payment
               </button>
               <button 
                 className="btn btn-danger" 
