@@ -20,10 +20,10 @@ const validate = (validations) => {
     }
 
     // If there are validation errors, return a 400 response
-    res.status(400).json({ 
+    res.status(400).json({
       success: false,
       message: 'Validation failed',
-      errors: errors.array() 
+      errors: errors.array()
     });
   };
 };
@@ -70,7 +70,11 @@ router.get("/doctors", [
     query("limit").optional().isInt({ min: 1, max: 100 }).toInt().withMessage("Limit must be between 1 and 100."),
     query("specialty").optional().trim().escape().withMessage("Specialty must be a string."),
     query("availableToday").optional().isBoolean().toBoolean().withMessage("AvailableToday must be a boolean."),
-    query("availableDay").optional().isIn(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"])
+    // Fix applied here: Add .isString() before .isIn()
+    query("availableDay")
+      .optional()
+      .isString().withMessage("AvailableDay must be a string.") // Ensures input is a string before isIn check
+      .isIn(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"])
       .withMessage("AvailableDay must be a valid day of the week."),
   ])
 ], async (req, res) => {
@@ -214,11 +218,11 @@ router.get("/patients", [
     const filter = { role: "patient", isActive: true }; // Only fetch active patients
 
     if (search) {
-        filter.$or = [
-            { name: { $regex: search, $options: "i" } },
-            { email: { $regex: search, $options: "i" } },
-            { phone: { $regex: search, $options: "i" } }
-        ];
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { phone: { $regex: search, $options: "i" } }
+      ];
     }
 
     const [patients, total] = await Promise.all([
@@ -338,17 +342,21 @@ router.get("/doctors/search", [
   validate([
     query("query").optional().trim().escape().withMessage("Search query must be a string."),
     query("specialty").optional().trim().escape().withMessage("Specialty must be a string."),
-    query("availableDay").optional().isIn([
-      "monday", "tuesday", "wednesday", "thursday",
-      "friday", "saturday", "sunday"
-    ]).withMessage("AvailableDay must be a valid day of the week."),
+    // Fix applied here: Add .isString() before .isIn()
+    query("availableDay")
+      .optional()
+      .isString().withMessage("AvailableDay must be a string.") // Ensures input is a string before isIn check
+      .isIn([
+        "monday", "tuesday", "wednesday", "thursday",
+        "friday", "saturday", "sunday"
+      ]).withMessage("AvailableDay must be a valid day of the week."),
   ])
 ], async (req, res) => {
   try {
     const { query: searchQuery, specialty, availableDay } = req.query; // Renamed 'query' to 'searchQuery' to avoid conflict
-    
+
     const filter = { role: "doctor", isActive: true };
-    
+
     if (searchQuery) {
       filter.$or = [
         { name: { $regex: searchQuery, $options: "i" } },
@@ -357,12 +365,12 @@ router.get("/doctors/search", [
         { specialty: { $regex: searchQuery, $options: "i" } } // Include specialty in general search
       ];
     }
-    
+
     // Combine with specific filters
     if (specialty) {
       filter.specialty = { $regex: specialty, $options: "i" };
     }
-    
+
     if (availableDay) {
       filter.availableDays = availableDay.toLowerCase();
     }
